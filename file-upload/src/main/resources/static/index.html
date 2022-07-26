@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Files</title>
+  </head>
+  <body>
+    <h1>Files</h1>
+
+    <!-- upload file to server using form -->
+    <fieldset>
+      <legend>upload a file</legend>
+      <form
+        action="http://localhost:8080/files"
+        method="post"
+        enctype="multipart/form-data"
+      >
+        <input name="file" type="file" accept="image/png, image/jpeg" />
+        <button>upload</button>
+      </form>
+    </fieldset>
+
+    <!-- display server file names using form -->
+    <fieldset>
+      <legend>list file names</legend>
+      <form action="http://localhost:8080/files" method="get">
+        <button>display files</button>
+      </form>
+    </fieldset>
+
+    <!-- download a file from server using form -->
+    <fieldset>
+      <legend>download file</legend>
+      <form action="http://localhost:8080/files/request-params" method="get">
+        <input name="fileName" type="search" placeholder="file name" />
+        <button>download</button>
+      </form>
+    </fieldset>
+
+    <!-- AJAX -->
+
+    <fieldset>
+      <legend>delete file</legend>
+      <input id="file-name-to-delete" type="search" placeholder="file name" />
+      <button
+        onclick="deleteFile(document.getElementById('file-name-to-delete').value)"
+      >
+        delete
+      </button>
+    </fieldset>
+
+    <script>
+      function deleteFile(fileName) {
+        const xhttp = new XMLHttpRequest();
+        xhttp.onload = function () {
+          if (this.status == 200) {
+            console.log(this.response);
+          } else {
+            console.log("Error" + this.response);
+          }
+        };
+        xhttp.open("DELETE", "http://localhost:8080/files/" + fileName);
+        xhttp.send();
+      }
+    </script>
+
+    <fieldset>
+      <legend>update file</legend>
+      <input id="old-file-name" type="search" placeholder="old file name" />
+      <input id="new-file-name" type="search" placeholder="new file name" />
+      <button onclick="updateFile()">update</button>
+    </fieldset>
+
+    <script>
+      function updateFile() {
+        let oldFileName = document.getElementById("old-file-name").value;
+        let newFileName = document.getElementById("new-file-name").value;
+        const xhttp = new XMLHttpRequest();
+        xhttp.onload = function () {
+          if (this.status == 200) {
+            console.log(this.response);
+          } else {
+            console.log("Error" + this.response);
+          }
+        };
+        xhttp.open(
+          "PUT",
+          "http://localhost:8080/files/" + oldFileName + "/" + newFileName
+        );
+        xhttp.send();
+      }
+    </script>
+
+    <fieldset>
+      <legend>delete all files</legend>
+      <button onclick="dalateAllFiles()">delete all</button>
+    </fieldset>
+
+    <script>
+      function dalateAllFiles() {
+        const xhttp = new XMLHttpRequest();
+        xhttp.onload = function () {
+          if (this.status == 200) {
+            console.log(this.response);
+          } else {
+            console.log("Error" + this.response);
+          }
+        };
+        xhttp.open("DELETE", "http://localhost:8080/files/");
+        xhttp.send();
+      }
+    </script>
+
+    <hr />
+    <button onclick="updateFilesList()">update files list</button>
+
+    <select id="files" onchange="setImg()" contenteditable=""></select>
+
+    <img id="image" src="" alt="image..." style="height: 200px" />
+
+    <!-- <embed
+      id="image"
+      src="http://localhost:8080/pics/FLR.PNG"
+      type=""
+      style="height: 200px"
+    /> -->
+
+    <script>
+      function setImg() {
+        const element = document.getElementById("files");
+        navigator.clipboard.writeText(element.value);
+        console.log(element.value);
+        document.getElementById("image").src =
+          "http://localhost:8080/pics/" + element.value;
+      }
+    </script>
+
+    <script>
+      function updateFilesList() {
+        const xhttp = new XMLHttpRequest();
+        xhttp.onload = function () {
+          if (this.status == 200) {
+            let arr = JSON.parse(this.response);
+            const selectElement = document.getElementById("files");
+            selectElement.innerHTML = null;
+            let opt = document.createElement("option");
+            opt.innerHTML = "--choose a file--";
+            selectElement.appendChild(opt);
+
+            arr.forEach((fileName) => {
+              opt = document.createElement("option");
+              opt.value = fileName;
+              opt.innerHTML = fileName;
+              selectElement.appendChild(opt);
+            });
+          } else {
+            console.log("Error" + this.response);
+          }
+        };
+        xhttp.open("GET", "http://localhost:8080/files");
+        xhttp.send();
+      }
+    </script>
+
+    <hr />
+    <h3>Add File from Script - NO Form</h3>
+    <input id="file-input" type="file" />
+    <button onclick="uploadFiles()">click</button>
+
+    <script>
+      function uploadFiles() {
+        let xhttp = new XMLHttpRequest();
+        xhttp.onload = function () {
+          if (this.status == 200) {
+            console.log("file added: " + this.response);
+          } else {
+            const error = JSON.parse(this.response);
+            console.dir(error);
+          }
+        };
+        xhttp.open("POST", "http://localhost:8080/files");
+        let fileList = document.getElementById("file-input").files;
+        let file = fileList[0];
+        let formData = new FormData();
+        formData.append("file", file);
+        xhttp.send(formData);
+      }
+
+      function displayFileInfo() {
+        // get a FileList object
+        let fileList = document.getElementById("file-input").files;
+        // get a File object
+        let file = fileList[0];
+        console.log(fileList);
+        console.dir(file);
+      }
+    </script>
+
+    <hr />
+    <h3>Add Multiple Files from Script - NO Form</h3>
+    <input id="files-input" type="file" multiple />
+    <button onclick="uploadMultiFiles()">click</button>
+
+    <script>
+      function uploadMultiFiles() {
+        const xhttp = new XMLHttpRequest();
+        xhttp.onload = function () {
+          if (this.status == 200) {
+            console.log("files added: " + this.response);
+          } else {
+            const error = JSON.parse(this.response);
+            console.log("Error: " + error.message);
+          }
+        };
+        xhttp.open("POST", "http://localhost:8080/files/multi");
+        const fileList = document.getElementById("files-input").files;
+        const filesArr = Array.from(fileList);
+        let formData = new FormData();
+        filesArr.forEach((f) => {
+          formData.append("files", f);
+        });
+        xhttp.send(formData);
+      }
+    </script>
+  </body>
+</html>
