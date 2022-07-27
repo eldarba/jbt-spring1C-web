@@ -3,15 +3,14 @@ package app.core.services;
 import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.Objects;
 
 import javax.annotation.PostConstruct;
 
+import org.apache.tomcat.util.http.fileupload.FileUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -24,10 +23,12 @@ public class FileStorageService {
 
 	@Value("${file.upload-dir}")
 	private String uploadDir;
-	private Path fileStoragePath;
+	private Path fileStoragePath; // Path is like File
 
 	@PostConstruct
 	public void init() {
+		// initialize the path to the store directory.
+		// normalize removes redundant . or ..
 		this.fileStoragePath = Paths.get(this.uploadDir).toAbsolutePath().normalize();
 		System.out.println("file storage path: " + this.fileStoragePath);
 		try {
@@ -37,17 +38,22 @@ public class FileStorageService {
 		}
 	}
 
-	public String uploadFile(MultipartFile multipartFile) throws FileAlreadyExistsException {
+	public String storeFile(MultipartFile multipartFile) {
+		// get the original filename in the client's filesystem
+		// cleanPath removes redundant . or ..
 		String fileName = StringUtils.cleanPath(multipartFile.getOriginalFilename());
 		System.out.println(">>> " + fileName);
 		if (fileName.contains("..")) {
 			throw new RuntimeException("file name invalid: " + fileName);
 		}
 		try {
-			Path targetLocation = this.fileStoragePath.resolve(fileName);
-			System.out.println(">>> " + targetLocation.toString());
-//			Files.copy(multipartFile.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
-			Files.copy(multipartFile.getInputStream(), targetLocation); // error if file exists
+			// create the path to the new file to save
+			// resolve adds the fileName to the path
+			Path fileTargetLocation = this.fileStoragePath.resolve(fileName);
+			System.out.println(">>> " + fileTargetLocation.toString());
+			// copy the file to the target location
+			Files.copy(multipartFile.getInputStream(), fileTargetLocation, StandardCopyOption.REPLACE_EXISTING);
+//			Files.copy(multipartFile.getInputStream(), targetLocation); // error if file exists
 			return fileName;
 		} catch (IOException e) {
 			throw new RuntimeException("storing file failed: " + fileName, e);
@@ -56,7 +62,8 @@ public class FileStorageService {
 
 	public Resource loadFileAsResource(String fileName) {
 		try {
-			// get path to the resource (the file)
+			// get path to the file
+			// resolve method - adds to the path
 			Path filePath = this.fileStoragePath.resolve(fileName).normalize();
 			// create the resource descriptor object
 			Resource resource = new UrlResource(filePath.toUri());
@@ -70,41 +77,65 @@ public class FileStorageService {
 		}
 	}
 
+	// public void deleteAllFilesInStorageDirectory() {
+	// File rootDir = this.fileStoragePath.toFile();
+	// deleteDirectory(rootDir);
+	// }
+	//
+	// private void deleteDirectory(File dir) {
+	// for (File file : Objects.requireNonNull(dir.listFiles())) {
+	// if (file.isDirectory()) {
+	// deleteDirectory(file);
+	// } else {
+	// file.delete();
+	// }
+	// }
+	// }
+
+	public void renameFile(String oldFileName, String newFileName) {
+		Path oldFilePath = this.fileStoragePath.resolve(oldFileName).normalize();
+		Path newFilePath = this.fileStoragePath.resolve(newFileName).normalize();
+		try {
+			// rename from old name to new name
+			Files.move(oldFilePath, newFilePath);
+		} catch (IOException e) {
+			throw new RuntimeException("renameFile failed", e);
+		}
+	}
+
 	public boolean deleteFile(String fileName) {
 		Path filePath = this.fileStoragePath.resolve(fileName).normalize();
-		File file = filePath.toFile();
-		if (file.exists()) {
-			return file.delete();
-		} else {
-			throw new RuntimeException("downloadFile failed. file not found: " + fileName);
+		try {
+			return Files.deleteIfExists(filePath);
+		} catch (IOException e) {
+			throw new RuntimeException("downloadFile failed", e);
 		}
 	}
 
-	public void deleteAllFiles() {
+	public void cleanStorageDirectory() {
 		File rootDir = this.fileStoragePath.toFile();
-		deleteDirectory(rootDir);
-	}
-
-	private void deleteDirectory(File dir) {
-		for (File file : Objects.requireNonNull(dir.listFiles())) {
-			if (file.isDirectory()) {
-				deleteDirectory(file);
-			} else {
-				file.delete();
-			}
+		try {
+			// org.apache.tomcat.util.http.fileupload.FileUtils
+			FileUtils.cleanDirectory(rootDir);
+		} catch (IOException e) {
+			throw new RuntimeException("deleteAllFilesInStorageDirectory failed", e);
 		}
 	}
 
-	public boolean renameFile(String fileName, String newFileName) {
-		Path filePath = this.fileStoragePath.resolve(fileName).normalize();
-		File file = filePath.toFile();
-		if (file.exists()) {
-			Path newFilePath = this.fileStoragePath.resolve(newFileName).normalize();
-			return file.renameTo(newFilePath.toFile());
-		} else {
-			throw new RuntimeException("renameFile failed. file not found: " + fileName);
-		}
-	}
+//	public void deleteAllFilesInStorageDirectory() {
+//		File rootDir = this.fileStoragePath.toFile();
+//		deleteDirectory(rootDir);
+//	}
+//
+//	private void deleteDirectory(File dir) {
+//		for (File file : Objects.requireNonNull(dir.listFiles())) {
+//			if (file.isDirectory()) {
+//				deleteDirectory(file);
+//			} else {
+//				file.delete();
+//			}
+//		}
+//	}
 
 	public String[] listFiles() {
 		return this.fileStoragePath.toFile().list();

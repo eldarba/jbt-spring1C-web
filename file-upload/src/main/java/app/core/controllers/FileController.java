@@ -47,7 +47,7 @@ public class FileController {
 	@PostMapping
 	public String uploadFile(@RequestParam() MultipartFile file) {
 		try {
-			String fileName = this.fileStorageService.uploadFile(file);
+			String fileName = this.fileStorageService.storeFile(file);
 			return fileName;
 		} catch (Exception e) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, generateErrorMsg(e));
@@ -59,7 +59,7 @@ public class FileController {
 		var names = new ArrayList<String>();
 		try {
 			for (MultipartFile multipartFile : files) {
-				String fileName = this.fileStorageService.uploadFile(multipartFile);
+				String fileName = this.fileStorageService.storeFile(multipartFile);
 				names.add(fileName);
 			}
 			return names;
@@ -67,11 +67,20 @@ public class FileController {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, generateErrorMsg(e));
 		}
 	}
+	
+	
 
 	@GetMapping("/{fileName:.+}")
 	public ResponseEntity<Resource> downloadFile(@PathVariable String fileName, HttpServletRequest request) {
+		return downloadFileByName(fileName, request);
+	}
+
+	@GetMapping("/request-params")
+	public ResponseEntity<Resource> downloadFileByName(@RequestParam String fileName, HttpServletRequest request) {
 		try {
+			// look for the file and get it as a Resource
 			Resource resource = this.fileStorageService.loadFileAsResource(fileName);
+			// figure out the mime type based on file name
 			String contentType = null;
 			try {
 				contentType = request.getServletContext().getMimeType(resource.getFile().getAbsolutePath());
@@ -82,62 +91,48 @@ public class FileController {
 				// arbitrary binary data
 				contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
 			}
-			System.out.println("content type = " + contentType);
-			return ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType))
-					.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
+			System.out.println("content type: " + contentType);
+			return ResponseEntity
+
+					.ok()
+
+					.contentType(MediaType.parseMediaType(contentType))
+					// inline - displayed inline in the Web page or as part of a Web page
+					.header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+
+					// attachement - downloaded and saved locally
+//					.header(HttpHeaders.CONTENT_DISPOSITION, "attachement; filename=\"" + resource.getFilename() + "\"")
+
 					.body(resource);
 		} catch (Exception e) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, generateErrorMsg(e));
 		}
 	}
 
-	@GetMapping("/request-params")
-	public ResponseEntity<Resource> downloadFile2(@RequestParam String fileName, HttpServletRequest request) {
+	@PutMapping("/{fileName:.+}/{newFileName:.+}")
+	public void renameFile(@PathVariable String fileName, @PathVariable String newFileName) {
 		try {
-			Resource resource = this.fileStorageService.loadFileAsResource(fileName);
-			String contentType = null;
-			try {
-				contentType = request.getServletContext().getMimeType(resource.getFile().getAbsolutePath());
-			} catch (IOException e) {
-				System.out.println("failed to determine mime type");
-			}
-			if (contentType == null) {
-				// arbitrary binary data
-				contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
-			}
-			System.out.println("content type = " + contentType);
-			return ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType))
-					.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
-					.body(resource);
+			this.fileStorageService.renameFile(fileName, newFileName);
 		} catch (Exception e) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, generateErrorMsg(e));
 		}
 	}
 
 	@DeleteMapping("/{fileName:.+}")
-	public boolean deleteFile(@PathVariable String fileName1) {
+	public boolean deleteFile(@PathVariable String fileName) {
 		try {
-			return this.fileStorageService.deleteFile(fileName1);
+			return this.fileStorageService.deleteFile(fileName);
 		} catch (Exception e) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, generateErrorMsg(e));
 		}
 	}
 
 	@DeleteMapping
 	public void deleteAllFiles() {
 		try {
-			this.fileStorageService.deleteAllFiles();
+			this.fileStorageService.cleanStorageDirectory();
 		} catch (Exception e) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
-		}
-	}
-
-	@PutMapping("/{fileName:.+}/{newFileName:.+}")
-	public boolean renameFile(@PathVariable String fileName, @PathVariable String newFileName) {
-		try {
-			return this.fileStorageService.renameFile(fileName, newFileName);
-		} catch (Exception e) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, generateErrorMsg(e));
 		}
 	}
 
